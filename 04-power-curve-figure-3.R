@@ -1,6 +1,9 @@
 ## code to approximate power curves for equivalence tests with the gamma model
 ## this procedure leverages Algorithm 1 and Algorithm 2 in two separate functions
 
+## these functions were used to produce Figure 3 of the main text along with 
+## Figures C.1 and C.2 in the supplement
+
 ## load required libraries
 require(foreach)
 require(doParallel)
@@ -8,6 +11,11 @@ require(doSNOW)
 require(numDeriv)
 require(qrng)
 require(nleqslv)
+require(ggplot2)
+require(cowplot)
+require(ggpubr)
+require(rjags)
+require(coda)
 
 ## function to approximate power curve using approximation method in Algorithm 1
 powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1, gamma_beta.1, gamma_alpha.2, 
@@ -813,3 +821,180 @@ for (k in 1){
 toc <- Sys.time()
 toc - tic
 
+## The next section of code estimates the power curves for Figure 3 by simulating
+## data (the red curves). This process is very computationally intensive. This code 
+## also returns the red power curves for Figure 4.
+
+## choose an array of sample sizes at which to approximate the power curve
+rrr_lower <- c(50,100,100)
+rrr_upper <- c(450,600,1750)
+rrr_inc <- c(10, 20, 50)
+
+## settings for three gamma scenarios
+convictions <- c(0.5, 0.9, 0.8)
+powers <- c(0.6, 0.7, 0.8)
+equivalences <- c(0.25, 0.3, 0.15)
+
+## design values
+gamma_alpha.1 <- 2.11
+gamma_beta.1 <- 0.69
+gamma_alpha.2 <- 2.43
+gamma_beta.2 <- 0.79
+threshold <- 4.29
+
+informs <- read.csv("informs_gamma.csv")
+
+## function to do MCMC for the posterior of theta1/theta2
+GammaPost <- function(y1, y2, mu1, tau1, kappa1, lambda1,
+                      mu2, tau2, kappa2, lambda2, tau = 4.29, burnin = 1000, nchains = 1,
+                      nthin = 2, ndraws = 200000){
+  
+  ## y1 and y2 are the food expenditure observations in each group
+  ## alpha_j has a Gamma(mu_j, tau_j) prior, where tau_j is a rate
+  ## beta_j has a Gamma(kappa_j, lambda_j) prior, where lambda_j is a rate
+  ## tau is the threshold for the tail probability
+  ## burnin is the number of MCMC iterations to discard at the start of each chain
+  ## nchains is the number of chains to generate
+  ## nthin is the thinning parameter for the MCMC process
+  ## ndraws is the number of draws to generate (excluding burnin but including thinned draws)
+  
+  ## precompute summary statistics to make JAGS faster
+  sum_y1 <- sum(y1)
+  sum_logy1 <- sum(log(y1))
+  n1 <- length(y1)
+  model1.fit <- jags.model(file="JAGS_gamma.txt",
+                           data=list(n=n1, sum_y = sum_y1, sum_logy = sum_logy1, 
+                                     tau0 = tau1, mu0 = mu1, zero = 0,
+                                     kappa0 = kappa1, lambda0 = lambda1), 
+                           n.chains = nchains, quiet = TRUE)
+  
+  update(model1.fit, burnin, progress.bar = "none")
+  model1.samples <- coda.samples(model1.fit, c("alpha", "beta"), n.iter=ndraws, thin=nthin, progress.bar = "none")
+  
+  ## get posterior draws for alpha_j and beta_j
+  alpha.1 <- unlist(model1.samples[,1])
+  beta.1 <- unlist(model1.samples[,2])
+  
+  sum_y2 <- sum(y2)
+  sum_logy2 <- sum(log(y2))
+  n2 <- length(y2)
+  model2.fit <- jags.model(file="JAGS_gamma.txt",
+                           data=list(n=n2, sum_y = sum_y2, sum_logy = sum_logy2, 
+                                     tau0 = tau2, mu0 = mu2, zero = 0,
+                                     kappa0 = kappa2, lambda0 = lambda2), 
+                           n.chains = nchains, quiet = TRUE)
+  
+  update(model2.fit, burnin, progress.bar = "none")
+  model2.samples <- coda.samples(model2.fit, c("alpha", "beta"), n.iter=ndraws, thin=nthin, progress.bar = "none")
+  
+  alpha.2 <- unlist(model2.samples[,1])
+  beta.2 <- unlist(model2.samples[,2])
+  
+  ## obtain posterior draws for theta
+  theta1 <- 1 - pgamma(tau, alpha.1, beta.1)
+  theta2 <- 1 - pgamma(tau, alpha.2, beta.2)
+  theta <- theta1/theta2
+  theta <- ifelse(is.na(theta), Inf, theta)
+  return(theta)
+}
+
+## set up parallelization
+cores=detectCores()
+cl <- makeSOCKcluster(cores[1]-1)
+
+registerDoSNOW(cl)
+pb <- txtProgressBar(max = 10000, style = 3)
+progress <- function(n) setTxtProgressBar(pb, n)
+opts <- list(progress = progress)
+
+## output power curve for informative priors
+for (k in 1:3){
+  rrr <- seq(rrr_lower[k], rrr_upper[k], rrr_inc[k])
+  if (k == 1){
+    ## add more granularity for smallest sample size setting
+    rrr <- c(seq(10,45,5), rrr)
+  }
+  results_rrr <- rep(0, length(rrr))
+  results_rrr_ci <- rep(0, length(rrr))
+  
+  eq <- equivalences[k]
+  alpha <- 1 - convictions[k]
+  pwer <- convictions[k]
+  
+  for (i in 1:length(rrr)){
+    print(rrr[i])
+    
+    pwr_rep <- foreach(j=1:10000, .combine='rbind', .packages = c("rjags", "coda"),
+                       .options.snow=opts) %dopar% {
+                         
+                         ## generate data from design distributions
+                         y_star1 <- rgamma(rrr[i], gamma_alpha.1, gamma_beta.1)
+                         y_star2 <- rgamma(rrr[i], gamma_alpha.2, gamma_beta.2)
+                         
+                         ## approximate posterior
+                         theta.diff <- GammaPost(y_star1, y_star2, informs[1,1], informs[1,2],
+                                                 informs[2,1], informs[2,2], informs[3,1], 
+                                                 informs[3,2], informs[4,1], informs[4,2],
+                                                 threshold)
+                         
+                         ## determine whether 100 x gamma % of posterior is in (delta_L, delta_U) using t3
+                         ## also check this criterion for the equal-tailed credible is satisfied using t1
+                         ## t2 (this is to repurpose the same posteriors for Figure 4)
+                         t1 <- mean(ifelse(theta.diff > (1 + eq),1,0))
+                         t2 <- mean(ifelse(theta.diff < (1 + eq)^(-1),1,0))
+                         t3 <- mean(ifelse(theta.diff > (1 + eq)^(-1), 
+                                           ifelse(theta.diff < (1 + eq),1,0), 0))
+                         c(t3 >= pwer, ifelse(t1 < alpha/2, t2 < alpha/2, 0))
+                         
+                       }
+    
+    ## results_rrr is the estimate for the power criterion in (1.4) of the main text
+    results_rrr[i] <- mean(as.numeric(pwr_rep[,1]))
+    ## results_rrr_ci is the estimate for the power criterion in (1.7) of the main text
+    results_rrr_ci[i] <- mean(as.numeric(pwr_rep[,2]))
+    write.csv(data.frame(rrr = rrr , results_rrr = results_rrr, results_rrr_ci), 
+              paste0("confirm_results_2", k, ".csv"), row.names = FALSE)
+  }
+}
+
+## repeat this process to output power curve for the settings with uninformative priors
+for (k in 1:3){
+  rrr <- seq(rrr_lower[k], rrr_upper[k], rrr_inc[k])
+  if (k == 1){
+    ## add more granularity for smallest sample size setting
+    rrr <- c(seq(10,45,5), rrr)
+  }
+  results_rrr <- rep(0, length(rrr))
+  results_rrr_ci <- rep(0, length(rrr))
+  
+  eq <- equivalences[k]
+  alpha <- 1 - convictions[k]
+  pwer <- convictions[k]
+  
+  for (i in 1:length(rrr)){
+    print(rrr[i])
+    
+    pwr_rep <- foreach(j=1:10000, .combine='rbind', .packages = c("rjags", "coda"),
+                       .options.snow=opts) %dopar% {
+                         
+                         y_star1 <- rgamma(rrr[i], gamma_alpha.1, gamma_beta.1)
+                         y_star2 <- rgamma(rrr[i], gamma_alpha.2, gamma_beta.2)
+                         
+                         theta.diff <- GammaPost(y_star1, y_star2, 2, 0.25,
+                                                 2, 0.25, 2, 0.25, 2, 0.25,
+                                                 threshold)
+                         
+                         t1 <- mean(ifelse(theta.diff > (1 + eq),1,0))
+                         t2 <- mean(ifelse(theta.diff < (1 + eq)^(-1),1,0))
+                         t3 <- mean(ifelse(theta.diff > (1 + eq)^(-1), 
+                                           ifelse(theta.diff < (1 + eq),1,0), 0))
+                         c(t3 >= pwer, ifelse(t1 < alpha/2, t2 < alpha/2, 0))
+                         
+                       }
+    
+    results_rrr[i] <- mean(as.numeric(pwr_rep[,1]))
+    results_rrr_ci[i] <- mean(as.numeric(pwr_rep[,2]))
+    write.csv(data.frame(rrr = rrr , results_rrr = results_rrr, results_rrr_ci), 
+              paste0("confirm_results_1", k, ".csv"), row.names = FALSE)
+  }
+}
