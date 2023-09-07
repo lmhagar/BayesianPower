@@ -12,10 +12,10 @@ Group 2: extract and process data from the ENIGH 2018 website and use this data 
                            to return design values for gamma and Weibull models along with informative priors
 
 Group 3: code to reproduce Figure 3 to 5 in the main text
-- 04-two-stage-process-gamma: code to implement our two-stage procedure for sample size determination
-	                      with the gamma tail probability example and equivalence tests facilitated
-                              via the probability of agreement
-- 05-numerical-study-length-criterion: code for confirmation study to determine how often the length
-                                       criterion is satisfied for various SSSD percentiles (Table 1)
-- 05-numerical-study-power-curve: code for confirmation study to determine how often the power
-                                  criterion is satisfied for various sample sizes (Figure 2)
+- 04-power-curve-figure-3: code to implement our power curve approximation procedure with the gamma tail
+                           probability example and equivalence tests facilitated posterior probabilities.
+                           This code was also used to produce Figures C.1 and C.2 in the supplement.
+- 05-power-curve-figure-4: code to implement our power curve approximation procedure with the gamma tail
+                           probability example and equivalence tests facilitated credible intervals.
+- 06-power-curve-figure-5: code to implement our power curve approximation procedure with the Weibull tail
+                           probability example and equivalence tests facilitated posterior probabilities.
