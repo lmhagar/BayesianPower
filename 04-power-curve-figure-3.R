@@ -998,3 +998,114 @@ for (k in 1:3){
               paste0("confirm_results_1", k, ".csv"), row.names = FALSE)
   }
 }
+
+## code to produce Figure 3
+
+## define plotting parameters for each setting
+powers <- c(0.6, 0.7, 0.8)
+settings <- c("a", "b", "c")
+jj <- 0
+for (k in c(1:3)){
+  jj <- jj + 1
+  for (ii in 1:2){
+    ## power curve approximations from Algorithm 4 with Algorithms 1 and 2
+    res_1 <- read.csv(paste0("alg1_bpc_gamma_samps_pwr_", ii, k, ".csv"))
+    res_2 <- read.csv(paste0("alg2_bpc_gamma_samps_pwr_", ii, k, ".csv"))
+    ## power curve approximations from simulating data from design distributions
+    rrr <- read.csv(paste0("confirm_results_",ii, k, ".csv"))$rrr
+    results_rrr <- read.csv(paste0("confirm_results_", ii, k, ".csv"))$results_rrr
+    power <- powers[jj]
+    y_mat <- NULL
+    z_mat <- NULL
+    for (i in 1:100){
+      ## use the empirical CDF to get coordinates to plot from each power curve
+      funecdf <- ecdf(as.numeric(res_1[i,]))
+      xxx <- seq(0, max(res_1[i,]), length.out = 600)
+      y_mat <- rbind(y_mat, data.frame(n = matrix(xxx, ncol = 1), curve = rep(2*i + 99, length(xxx))))
+      z_mat <- rbind(z_mat, data.frame(power = matrix(funecdf(xxx), ncol = 1)))
+      
+      funecdf <- ecdf(as.numeric(res_2[i,]))
+      xxx <- seq(0, max(res_2[i,]), length.out = 600)
+      y_mat <- rbind(y_mat, data.frame(n = matrix(xxx, ncol = 1), curve = rep(2*i + 100, length(xxx))))
+      z_mat <- rbind(z_mat, data.frame(power = matrix(funecdf(xxx), ncol = 1)))
+      
+    }
+    
+    ## use assign() and get() functions to automate this process for all settings
+    assign(paste0("power", ii, k), power)
+    
+    assign(paste0("data_full",ii, k), data.frame(n = y_mat$n, power = z_mat$power, curve = y_mat$curve))
+    assign(paste0("data_full",ii, k), subset(get(paste0("data_full",ii, k)), get(paste0("data_full",ii, k))$n > 0))
+    assign(paste0("data_full",ii, k), subset(get(paste0("data_full",ii, k)), get(paste0("data_full",ii, k))$power > 0))
+    
+    assign(paste0("data_sim",ii, k), data.frame(n = rrr, power = results_rrr))
+    assign(paste0("title", ii, k), paste0("Setting ", ii, settings[jj]))
+    
+    ## Power curves obtained by simulating data are red, power curves with Algorithm 1 are yellow,
+    ## and those with Algorithm 2 are blue
+    assign(paste0("plot",ii, k), ggplot(get(paste0("data_full",ii, k)), aes(x=n)) + theme_bw() +
+             geom_line(aes(y = power, color=as.factor(curve), alpha = 0.25), size = 1) +
+             labs(title=get(paste0("title", ii, k))) +
+             labs(x= bquote(italic(n)), y= bquote('Power')) +
+             theme(plot.title = element_text(size=20,face="bold",
+                                             margin = margin(t = 0, 0, 5, 0))) +
+             theme(axis.text=element_text(size=16),
+                   axis.title=element_text(size=18)) +
+             theme(legend.position="none") +
+             scale_color_manual(name = " ", 
+                                values = c(rep(c("#E6C032", cbbPalette[3]), 100), "firebrick")) +
+             theme(legend.text=element_text(size=18)) +
+             ylim(0,1) + 
+             xlim(0, max(get(paste0("data_sim",ii, k))$n)) + 
+             theme(axis.title.y = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0))) +
+             theme(axis.title.x = element_text(margin = margin(t = 5, r = 0, b = 0, l = 0))) +
+             geom_line(data = get(paste0("data_sim",ii, k)), aes(x = n, y = power, color="firebrick"), size = 1) +
+             geom_hline(yintercept=get(paste0("power", ii, k)), lty = 2)
+    )
+  }
+}
+
+## create common legend for the bottom of the plot grid
+assign(paste0("plot",ii, k, "legend"), ggplot(subset(get(paste0("data_full",ii, k)), get(paste0("data_full",ii, k))$curve < 103), aes(x=n)) + theme_bw() +
+         geom_line(aes(y = power, color=as.factor(curve)), size = 1) +
+         labs(title=get(paste0("title", ii, k))) +
+         labs(x= bquote(italic(n)), y= bquote('Power')) +
+         theme(plot.title = element_text(size=20,face="bold",
+                                         margin = margin(t = 0, 0, 5, 0))) +
+         theme(axis.text=element_text(size=16),
+               axis.title=element_text(size=18)) +
+         theme(legend.position="bottom") +
+         scale_color_manual(name = " ",
+                            labels = c(rep(c("Algorithm 1  ", "Algorithm 2  "), 1), "Data"), 
+                            values = c(rep(c("#E6C032", cbbPalette[3]), 1), "firebrick")) +
+         theme(legend.text=element_text(size=18)) +
+         ylim(0,1) + 
+         xlim(0, max(get(paste0("data_sim",ii, k))$n)) + 
+         theme(axis.title.y = element_text(margin = margin(t = 0, r = 5, b = 0, l = 0))) +
+         theme(axis.title.x = element_text(margin = margin(t = 5, r = 0, b = 0, l = 0))) +
+         geom_line(data = get(paste0("data_sim",ii, k)), aes(x = n, y = power, color="firebrick"), size = 1) +
+         geom_hline(yintercept=get(paste0("power", ii, k)), lty = 2)
+)
+
+## arrange in grid form
+figp.row1 <- plot_grid(plot11 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")), 
+                       plot21 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")),
+                       rel_widths = c(1, 1))
+figp.row2 <- plot_grid(plot12 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")), 
+                       plot22 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")),
+                       rel_widths = c(1, 1))
+figp.row3 <- plot_grid(plot13 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")), 
+                       plot23 + theme(plot.margin=unit(c(0.25,0.5,0.25,0.5),"cm")),
+                       rel_widths = c(1, 1))
+figp <- plot_grid(figp.row1, figp.row2, figp.row3, nrow = 3)
+
+fig_final <- plot_grid(figp, get_legend(get(paste0("plot",ii, k, "legend"))), ncol = 1, rel_heights = c(2, .1))
+
+# output as .pdf file for the article
+pdf(file = "Fig3.pdf",   # The directory you want to save the file in
+    width = 10.5, # The width of the plot in inches
+    height = 8.8) # The height of the plot in inches
+
+fig_final
+
+dev.off()

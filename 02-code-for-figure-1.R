@@ -203,9 +203,9 @@ fig1.row2 <- plot_grid(plot1c + theme(plot.margin=unit(c(0.5,0.5,0.5,0.5),"cm"))
 fig1 <- plot_grid(fig1.row1, fig1.row2, nrow = 2)
 
 ## output as .pdf file for the article
-pdf(file = "Figure1BA.pdf",   # The directory you want to save the file in
-    width = 11.7895, # The width of the plot in inches (12.41)
-    height = 10.165) # The height of the plot in inches (10.7)
+pdf(file = "Figure1.pdf",   # The directory you want to save the file in
+    width = 11.7895, # The width of the plot in inches 
+    height = 10.165) # The height of the plot in inches
 
 fig1
 
