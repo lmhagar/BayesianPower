@@ -1,0 +1,12 @@
+
+
+model {
+   for ( i in 1 : n ) 
+   { 
+      y[i] ~ dweibull( nu, b )
+   }
+   # Priors
+   b <- pow(l, -nu)
+   nu ~ dgamma(mu0, tau0)  
+   l ~ dgamma(kappa0, lambda0) 
+}

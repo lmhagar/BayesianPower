@@ -1,0 +1,13 @@
+
+
+model {
+
+   C <- 10000  # this just has to be large enough to ensure all phi[i]'s > 0
+
+   phi <- -n*alpha*log(beta) + n*loggam(alpha) - (alpha - 1)*sum_logy + beta*sum_y + C
+   zero ~ dpois(phi)
+
+   # Priors
+   alpha ~ dgamma(mu0, tau0)  
+   beta ~ dgamma(kappa0, lambda0) 
+}
