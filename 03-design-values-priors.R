@@ -154,8 +154,6 @@ a1_var <- var(alpha.1)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(34.23, 15.85)
 informs <- c(a1_star, b1_star)
 
 ## consider beta1
@@ -167,8 +165,6 @@ a1_var <- var(beta.1)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(27.20, 38.15)
 informs <- rbind(informs, c(a1_star, b1_star))
 
 ## consider alpha2
@@ -180,8 +176,6 @@ a1_var <- var(alpha.2)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(105.31, 42.96)
 informs <- rbind(informs, c(a1_star, b1_star))
 
 ## consider beta2
@@ -193,8 +187,6 @@ a1_var <- var(beta.2)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(85.49, 106.58)
 informs <- rbind(informs, c(a1_star, b1_star))
 
 ## output informative gamma distribution hyperparameters to .csv file
@@ -261,8 +253,6 @@ a1_var <- var(nu.1)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(12.73,  8.28)
 informs <- c(a1_star, b1_star)
 
 ## consider lambda1
@@ -274,8 +264,6 @@ a1_var <- var(lambda.1)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(11.81,  3.20)
 informs <- rbind(informs, c(a1_star, b1_star))
 
 ## consider nu2
@@ -287,8 +275,6 @@ a1_var <- var(nu.2)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(38.35, 25.09)
 informs <- rbind(informs, c(a1_star, b1_star))
 
 ## consider lambda2
@@ -300,9 +286,7 @@ a1_var <- var(lambda.2)
 ## solve system of equations to get desired gamma distribution
 b1_star <- (-a1_mode - sqrt(a1_mode^2 + 4*var_inf*a1_var))/(-2*var_inf*a1_var); b1_star
 a1_star <- 1 + a1_mode*b1_star; a1_star
-
-## should be GAMMA(37.91, 10.79)
 informs <- rbind(informs, c(a1_star, b1_star))
 
-## output informative weibull distribution hyperparameters to .csv file
+## output informative Weibull distribution hyperparameters to .csv file
 write.csv(informs, "informs_weibull.csv", row.names = FALSE)
