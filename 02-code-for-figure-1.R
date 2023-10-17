@@ -106,7 +106,9 @@ plot1a <-
   geom_segment(aes(x = 4.82, y = 0, 
                    xend=4.82, yend = (Inf*(use_pctl))), color="grey16", size=1.5) +
   theme(axis.text=element_text(size=12),
-        axis.title=element_text(size=14)) + ylim(0, 0.3)
+        axis.title=element_text(size=14)) + ylim(0, 0.3) +
+  annotate(geom="text", x=7.25, y=0.28, label=expression(kappa*' = 4.82'),
+           color="black", size = 6)
 
 group2_name <- "Male Household Provider"
 n2 <- length(y2)
@@ -128,7 +130,9 @@ plot1c <- ggplot(data=foodM, aes(foodM$food)) + theme_bw() +
         axis.title=element_text(size=14)) +
   geom_area(data = fit2, aes(x=xfit, y=yfit), fill="#FED758", col="#9E8203", alpha=0.45, size = 1) + 
   geom_segment(aes(x = 4.82, y = 0, 
-                   xend=4.82, yend = (Inf*(use_pctl))), color="grey16", size=1.5) + ylim(0, 0.3)
+                   xend=4.82, yend = (Inf*(use_pctl))), color="grey16", size=1.5) + ylim(0, 0.3) +
+  annotate(geom="text", x=7.25, y=0.28, label=expression(kappa*' = 4.82'),
+           color="black", size = 6)
 
 ## approximate the posterior using nonparametric density estimation
 d <- density(theta)
