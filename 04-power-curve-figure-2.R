@@ -1128,7 +1128,7 @@ closeAllConnections()
 
 ## The next section of code estimates the power curves for Figure 2 by simulating
 ## data (the red curves). This process is very computationally intensive. This code 
-## also returns the red power curves for Figure 3.
+## also returns the red power curves for Figure 4.
 
 ## choose an array of sample sizes at which to approximate the power curve
 rrr_lower <- c(50,100,100)
@@ -1138,8 +1138,8 @@ rrr_inc <- c(10, 20, 50)
 ## settings for three gamma scenarios
 convictions <- c(0.5, 0.9, 0.8)
 powers <- c(0.6, 0.7, 0.8)
-delta_Ls <- c(log(1/(1+0.25)), log(1/(1+0.3)), log(1/(1+0.15)))
-delta_Us <- c(log(1 + 0.25), Inf, log(1 + 0.15))
+delta_Ls <- exp(c(log(1/(1+0.25)), log(1/(1+0.3)), log(1/(1+0.15))))
+delta_Us <- exp(c(log(1 + 0.25), Inf, log(1 + 0.15)))
 
 ## design values
 gamma_alpha.1 <- 2.11

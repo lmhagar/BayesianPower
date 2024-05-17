@@ -11,13 +11,15 @@ Group 2: extract and process data from the ENIGH 2018 website and use this data 
 - 03-design-values-priors: processes the ENIGH 2018 food data and uses the relevant posteriors
                            to return design values for gamma and Weibull models along with informative priors
 
-Group 3: code to reproduce Figure 2 to 4 in the main text
+Group 3: code to reproduce Figure 2 to 5 in the main text
 - 04-power-curve-figure-2: code to implement our power curve approximation procedure with the gamma tail
                            probability example and hypothesis tests facilitated posterior probabilities.
                            This code was also used to produce Figures D.1 and D.2 in the supplement.
-- 05-power-curve-figure-3: code to implement our power curve approximation procedure with the gamma tail
+- 05-power-curve-figure-3: code to implement our power curve approximation procedure with the predictive
+                           approach for the gamma model.
+- 06-power-curve-figure-4: code to implement our power curve approximation procedure with the gamma tail
                            probability example and hypothesis tests facilitated credible intervals.
-- 06-power-curve-figure-4: code to implement our power curve approximation procedure with the Weibull tail
+- 07-power-curve-figure-5: code to implement our power curve approximation procedure with the Weibull tail
                            probability example and hypothesis tests facilitated posterior probabilities.
 
 There are also 2 files "informs_gamma.csv" and "informs_weibull.csv" that contain the informative prior specifications.

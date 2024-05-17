@@ -107,7 +107,7 @@ plot1a <-
                    xend=4.82, yend = (Inf*(use_pctl))), color="grey16", size=1.5) +
   theme(axis.text=element_text(size=12),
         axis.title=element_text(size=14)) + ylim(0, 0.3) +
-  annotate(geom="text", x=7.25, y=0.28, label=expression(kappa*' = 4.82'),
+  annotate(geom="text", x=8, y=0.28, label=expression(kappa*' = 4.82'),
            color="black", size = 6)
 
 group2_name <- "Male Household Provider"
@@ -131,87 +131,18 @@ plot1c <- ggplot(data=foodM, aes(foodM$food)) + theme_bw() +
   geom_area(data = fit2, aes(x=xfit, y=yfit), fill="#FED758", col="#9E8203", alpha=0.45, size = 1) + 
   geom_segment(aes(x = 4.82, y = 0, 
                    xend=4.82, yend = (Inf*(use_pctl))), color="grey16", size=1.5) + ylim(0, 0.3) +
-  annotate(geom="text", x=7.25, y=0.28, label=expression(kappa*' = 4.82'),
+  annotate(geom="text", x=8, y=0.28, label=expression(kappa*' = 4.82'),
            color="black", size = 6)
 
-## approximate the posterior using nonparametric density estimation
-d <- density(theta)
-d_frame <- data.frame(x = d$x, y = d$y)
-
-## make plot with no red shading first (additional layers to be added later)
-plot1e <- ggplot(data=d_frame, aes(x=d_frame$x)) + theme_bw() +
-  geom_polygon(aes(y=d_frame$y), col="gray10", fill="snow1", size=0.75, alpha=0.9) +
-  labs(title = bquote(bold("Posterior pdf of "~ theta[1] ~ '\u00F7' ~ theta[2]))) +
-  # labs(subtitle = " ") +
-  labs(x=bquote(bold('\n Posterior pdf of'~ theta[1] ~ '\u00F7' ~ theta[2])), y=" ") + 
-  theme(plot.title = element_text(margin = unit(c(0, 0, 5, 0), "mm"),
-        hjust = 0.5,size=18,face="bold", colour = "#FFFFFF")) +
-  # theme(plot.subtitle = element_text(hjust = 0.5,size=16,face="bold")) +
-  theme(axis.text=element_text(size=12),
-        axis.title=element_text(size=16,face="bold")) + 
-  theme(axis.title.x = element_text(margin = unit(c(5, 0, 0, 0), "mm")))
-
-## calculate CPMs
-delta.L <- 1
-delta.U <- Inf
-
-CPM_4 <- round(mean(ifelse(theta < delta.U, theta > delta.L,0)),4)
-CPM_title <- bquote(bold(italic(Pr)*'( '* theta[1] > theta[2]*' | '*italic(data)*') =' ~ .(CPM_4)))
-
-x_title <- bquote(bold('\n Posterior pdf of'~ theta[1] ~ '\u00F7' ~ theta[2]))
-
-CPM_subset = subset(d_frame, x > delta.L & x < delta.U)
-x_new = 
-  c(max(delta.L,min(CPM_subset$x)), unlist(CPM_subset$x), 
-    min(delta.U,max(CPM_subset$x)))
-y_new = c(0,unlist(CPM_subset$y),0)
-CPM_frame = data.frame(x = x_new,y = y_new)
-
-## make plot for one-sided superiority test (top right corner)
-plot1b <- 
-  plot1e + labs(title = NULL) + labs(x = NULL) +
-  labs(title=CPM_title) +
-  labs(x= x_title) +
-  geom_polygon(data = CPM_frame, aes(x=x, y=y), fill="firebrick", col="gray10", size = 0.75, alpha = 0.75) +
-  theme(plot.title = element_text(hjust = 0.5,size=18,face="bold", colour = "#000000"))
-
-delta.L <- 1/1.1
-delta.U <- 1.1
-
-CPM_4 <- round(mean(ifelse(theta < delta.U, theta > delta.L,0)),4)
-CPM_title <- bquote(bold(italic(Pr)*'( '* 1.1^-1 < theta[1]~'\u00F7'~ theta[2] < 1.1*' | '*italic(data)*') =' ~ .(CPM_4)))
-
-x_title <- bquote(bold('\n Posterior pdf of'~ theta[1] ~ '\u00F7' ~ theta[2]))
-
-CPM_subset = subset(d_frame, x > delta.L & x < delta.U)
-x_new = 
-  c(max(delta.L,min(CPM_subset$x)), unlist(CPM_subset$x), 
-    min(delta.U,max(CPM_subset$x)))
-y_new = c(0,unlist(CPM_subset$y),0)
-CPM_frame = data.frame(x = x_new,y = y_new)
-
-## make plot for equivalence test (bottom right corner)
-plot1d <- 
-  plot1e + labs(title = NULL) + labs(x = NULL) +
-  labs(title=CPM_title) +
-  labs(x= x_title) +
-  geom_polygon(data = CPM_frame, aes(x=x, y=y), fill="firebrick", col="gray10", size = 0.75, alpha = 0.75) +
-  theme(plot.title = element_text(hjust = 0.5,size=18,face="bold", colour = "#000000"))
-
-## combine into grid
 fig1.row1 <- plot_grid(plot1a + theme(plot.margin=unit(c(0.25,0.25,0.45,0.25),"cm")), 
-                       plot1b + theme(plot.margin=unit(c(0.25,0.25,0.45,0.25),"cm")),
-                       rel_widths = c(1.45, 1.15))
-fig1.row2 <- plot_grid(plot1c + theme(plot.margin=unit(c(0.45,0.25,0.25,0.25),"cm")), 
-                       plot1d + theme(plot.margin=unit(c(0.45,0.25,0.25,0.25),"cm")),
-                       rel_widths = c(1.45, 1.15))
-fig1 <- plot_grid(fig1.row1, fig1.row2, nrow = 2)
+                       plot1c + theme(plot.margin=unit(c(0.45,0.25,0.25,0.25),"cm")),
+                       rel_widths = c(1, 1))
 
 ## output as .pdf file for the article
-pdf(file = "Figure1BA.pdf",   # The directory you want to save the file in
-    width = 11.7895, # The width of the plot in inches (12.41)
-    height = 9.15) # The height of the plot in inches (10.7)
+pdf(file = "Figure1BAText.pdf",   # The directory you want to save the file in
+    width = 9, # The width of the plot in inches (12.41)
+    height = 4.85) # The height of the plot in inches (10.7)
 
-fig1
+fig1.row1
 
 dev.off()
