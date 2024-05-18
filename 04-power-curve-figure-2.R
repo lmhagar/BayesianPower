@@ -1128,7 +1128,7 @@ closeAllConnections()
 
 ## The next section of code estimates the power curves for Figure 2 by simulating
 ## data (the red curves). This process is very computationally intensive. This code 
-## also returns the red power curves for Figure 4.
+## also returns the red power curves for Figure 3.
 
 ## choose an array of sample sizes at which to approximate the power curve
 rrr_lower <- c(50,100,100)
