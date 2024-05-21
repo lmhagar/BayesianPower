@@ -98,7 +98,7 @@ plot1a <-
   coord_cartesian(xlim = c(hist_lower2, hist_upper2)) +
   labs(title=paste(group1_name, "\n")) +
   labs(x=bquote(atop(' ', atop(textstyle('Food Expenditure per Person (MXN $1000)'),
-                               textstyle('n = '*.(n1)*", "*.(metric_plot)*' ('*hat(theta)[1]*  
+                               textstyle(italic(n)[1]*' = '*.(n1)*", "*.(metric_plot)*' ('*hat(theta)[1]*  
                                            ') = '*.(metric_value1))))), y="Density\n") + 
   theme(plot.title = element_text(hjust = 0.5,size=16,face="bold")) + 
   theme(plot.subtitle = element_text(hjust = 0.5,size=14)) +
@@ -123,7 +123,7 @@ plot1c <- ggplot(data=foodM, aes(foodM$food)) + theme_bw() +
   coord_cartesian(xlim = c(hist_lower2, hist_upper2)) +
   labs(title=paste(group2_name,"\n")) +
   labs(x=bquote(atop(' ', atop(textstyle('Food Expenditure per Person (MXN $1000)'),
-                               textstyle('n = '*.(n2)*", "*.(metric_plot)*' ('*hat(theta)[2]*  
+                               textstyle(italic(n)[2]*' = '*.(n2)*", "*.(metric_plot)*' ('*hat(theta)[2]*  
                                            ') = '*.(metric_value2))))), y="Density\n") + 
   theme(plot.title = element_text(hjust = 0.5,size=16,face="bold")) +
   theme(axis.text=element_text(size=12),
