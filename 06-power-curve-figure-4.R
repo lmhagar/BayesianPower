@@ -23,50 +23,62 @@ powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   ## power: the target power, denoted capital Gamma in the paper
   ## delta_L: lower interval endpoint for hypothesis test
   ## delta_U: upper interval endpoint for hypothesis test
-  ## gamma_alpha.j: the design value for the shape parameter of the gamma distribution for group j = 1, 2
-  ## gamma_beta.j: the design value for the rate parameter of the gamma distribution for group j = 1, 2
+  ## gamma_alpha.j: the design values for the shape parameter of the gamma distribution for group j = 1, 2
+  ## gamma_beta.j: the design values for the rate parameter of the gamma distribution for group j = 1, 2
   ## threshold: the threshold for the tail probability in each group, denoted tau in the paper
   ## m: length of Sobol' sequence to approximate power curve
   ## q: constant for imbalanced sample size determination, where n_2 = q*n_1
   ## seed: seed used to generated randomized Sobol' sequence for reproducibility (default is 1)
   
+  ## generate a Sobol' sequence to find asymptotic power curve
+  ## we need an extra dimension for the predictive approach
+  sob_pwr <- sobol(m, d = 5, randomize = "digital.shift", seed = seed)
+  
   gamma_theta.1 <- 1 - pgamma(threshold, gamma_alpha.1, gamma_beta.1)
   gamma_theta.2 <- 1 - pgamma(threshold, gamma_alpha.2, gamma_beta.2)
   gamma_theta <- gamma_theta.1/gamma_theta.2
   
-  ## use the median draws from the design prior to get the starting point
-  alpha1 <- median(gamma_alpha.1); alpha2 <- median(gamma_alpha.2)
-  beta1 <- median(gamma_beta.1); beta2 <- median(gamma_beta.2)
-  ## define theta metrics in terms of design values
-  theta1 <- 1 - pgamma(threshold, alpha1, beta1)
-  theta2 <- 1 - pgamma(threshold, alpha2, beta2)
+  ## the design values are reordered according to the final dimension of the Sobol' sequence
+  params <- cbind(gamma_alpha.1, gamma_beta.1, gamma_alpha.2, gamma_beta.2)
+  params <- params[order(gamma_theta),]
+  params <- params[ceiling(length(gamma_theta)*sob_pwr[,5]),]
   
-  ## compute partial derivatives of theta with respect to alpha and beta for each group
-  int_1 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
-                     lower = 0, upper = threshold, alpha = alpha1, beta = beta1)$value
+  gamma_alpha.1 <- params[,1]; gamma_beta.1 <- params[,2]
+  gamma_alpha.2 <- params[,3]; gamma_beta.2 <- params[,4]
   
-  d_alpha1 <- digamma(alpha1)*pgamma(threshold,alpha1, beta1) - int_1
-  
-  d_beta1 <- (alpha1/beta1)*(pgamma(threshold, alpha1+1, beta1) - pgamma(threshold, alpha1, beta1))
-  
-  int_2 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
-                     lower = 0, upper = threshold, alpha = alpha2, beta = beta2)$value
-  
-  d_alpha2 <- digamma(alpha2)*pgamma(threshold, alpha2, beta2) - int_2
-  
-  d_beta2 <- (alpha2/beta2)*(pgamma(threshold, alpha2+1, beta2) - pgamma(threshold, alpha2,beta2))
-  
-  ## compute Fisher information for each gamma model
-  Fish1inv <- matrix((1/(trigamma(alpha1)*alpha1 - 1))*c(alpha1, beta1, beta1, trigamma(alpha1)*beta1^2), nrow = 2)
-  Fish2inv <-  matrix((1/(trigamma(alpha2)*alpha2 - 1))*c(alpha2, beta2, beta2, trigamma(alpha2)*beta2^2), nrow = 2)
-  
-  ## apply the delta method to get the limiting variance for each theta_j metric
-  avar1 <- t(c(d_alpha1, d_beta1))%*%Fish1inv%*%c(d_alpha1, d_beta1)
-  
-  avar2 <- t(c(d_alpha2, d_beta2))%*%Fish2inv%*%c(d_alpha2, d_beta2)/q
-  
-  ## apply the delta method to get the limiting variance for theta = logtheta1 - logtheta2
-  Fish_ratio_mu <- as.numeric(avar1/theta1^2 + avar2/theta2^2)
+  fn_prep <- function(alpha1, beta1, alpha2, beta2, threshold, q){
+    ## define theta metrics in terms of design values
+    theta1 <- 1 - pgamma(threshold, alpha1, beta1)
+    theta2 <- 1 - pgamma(threshold, alpha2, beta2)
+    
+    ## compute partial derivatives of theta with respect to alpha and beta for each group
+    int_1 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
+                       lower = 0, upper = threshold, alpha = alpha1, beta = beta1)$value
+    
+    d_alpha1 <- digamma(alpha1)*pgamma(threshold,alpha1, beta1) - int_1
+    
+    d_beta1 <- (alpha1/beta1)*(pgamma(threshold, alpha1+1, beta1) - pgamma(threshold, alpha1, beta1))
+    
+    int_2 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
+                       lower = 0, upper = threshold, alpha = alpha2, beta = beta2)$value
+    
+    d_alpha2 <- digamma(alpha2)*pgamma(threshold, alpha2, beta2) - int_2
+    
+    d_beta2 <- (alpha2/beta2)*(pgamma(threshold, alpha2+1, beta2) - pgamma(threshold, alpha2,beta2))
+    
+    ## compute Fisher information for each gamma model
+    Fish1inv <- matrix((1/(trigamma(alpha1)*alpha1 - 1))*c(alpha1, beta1, beta1, trigamma(alpha1)*beta1^2), nrow = 2)
+    Fish2inv <-  matrix((1/(trigamma(alpha2)*alpha2 - 1))*c(alpha2, beta2, beta2, trigamma(alpha2)*beta2^2), nrow = 2)
+    
+    ## apply the delta method to get the limiting variance for each theta_j metric
+    avar1 <- t(c(d_alpha1, d_beta1))%*%Fish1inv%*%c(d_alpha1, d_beta1)
+    
+    avar2 <- t(c(d_alpha2, d_beta2))%*%Fish2inv%*%c(d_alpha2, d_beta2)/q
+    
+    ## apply the delta method to get the limiting variance for theta = logtheta1 - logtheta2
+    Fish_ratio_mu <- as.numeric(avar1/theta1^2 + avar2/theta2^2)
+    return(c(theta1, theta2, Fish_ratio_mu))
+  }
   
   ## uniroot without error checking
   uu <- function (fun, lower, upper, f_lower = NULL, f_upper = NULL, maxiter = 1000, tol = 1e-4, tol2 = 0.01, ...)
@@ -138,23 +150,48 @@ powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   
   ## return initial upper bound for the root finding algorithm
   if (!is.finite(delta_U)){
-    mu_start <- ((qnorm(power) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2
-    mu_low <- min(((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2, 0.5*mu_start)
-    mu_high <- max(((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2, 2*mu_start)
+    mu_start_vec <- NULL; mu_low_vec <- NULL; mu_high_vec <- NULL
+    for (i in 1:128){
+      prep_vec <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      mu_start_vec[i] <- ((qnorm(power) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2
+      mu_low_vec[i] <- min(((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2, 0.5*mu_start_vec[i])
+      mu_high_vec[i] <- max(((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2, 2*mu_start_vec[i])
+    }
+    mu_start <- median(mu_start_vec)
+    mu_low <- median(mu_low_vec)
+    mu_high <- median(mu_high_vec)
   }
   else if (!is.finite(delta_L)){
-    mu_start <- ((qnorm(power) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2))))^2
-    mu_low <- min((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2)))^2, 0.5*mu_start)
-    mu_high <- max((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2)))^2, 2*mu_start)
+    mu_start_vec <- NULL; mu_low_vec <- NULL; mu_high_vec <- NULL
+    for (i in 1:128){
+      prep_vec <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      mu_start_vec[i] <- ((qnorm(power) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2]))))^2
+      mu_low_vec[i] <- min((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2])))^2, 0.5*mu_start_vec[i])
+      mu_high_vec[i] <- max((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2])))^2, 2*mu_start_vec[i])
+    }
+    mu_start <- median(mu_start_vec)
+    mu_low <- median(mu_low_vec)
+    mu_high <- median(mu_high_vec)
   }
   else{
+    prep_mat <- NULL
+    for (i in 1:128){
+      prep_mat_temp <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      prep_mat <- rbind(prep_mat, prep_mat_temp)
+    }
+    
     ## find more conservative upper bound using criteria for credible intervals
-    theta0 <- log(theta1) - log(theta2)
-    a_cons <- (delta_U - theta0)/sqrt(Fish_ratio_mu)
-    b_cons <- (delta_L - theta0)/sqrt(Fish_ratio_mu)
+    theta0_vec <- log(prep_mat[,1]) - log(prep_mat[,2])
+    a_cons_vec <- (delta_U - theta0_vec)/sqrt(prep_mat[,3])
+    b_cons_vec <- (delta_L - theta0_vec)/sqrt(prep_mat[,3])
     c_cons <- qnorm((1-conviction)/2)
     ## lower bound for root-finding algorithm
-    lower_cons <- -2*c_cons*sqrt(Fish_ratio_mu)/(delta_U - delta_L)
+    lower_cons_vec <- -2*c_cons*sqrt(prep_mat[,3])/(delta_U - delta_L)
+    max.ind <- which.max(lower_cons_vec)
+    
+    a_cons <- a_cons_vec[max.ind]
+    b_cons <- b_cons_vec[max.ind]
+    lower_cons <- lower_cons_vec[max.ind]
     upper_cons <- lower_cons
     
     fn_ci = function(n_sq, a, b, c, pwr){
@@ -171,7 +208,7 @@ powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
     
     upper_n <- (uu(fn_ci, a = a_cons, b = b_cons, c = c_cons, pwr = power, 
                    lower = lower_cons, upper = upper_cons))^2
-
+    
     fn_start = function(n_trans, a, b, u, gam)
     {
       return(gam + pnorm(b, n_trans*qnorm(u), n_trans) - pnorm(a, n_trans*qnorm(u), n_trans))
@@ -179,34 +216,22 @@ powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
     uuu <- as.numeric(sobol(128, d = 1, randomize = "digital.shift", seed = seed))
     start_rep <- NULL
     for (i in 1:length(uuu)){
-      check_upper_n <- fn_start(n_trans = sqrt(Fish_ratio_mu)/sqrt(upper_n), 
-                                a = delta_U - theta0, u = uuu[i],
-                                b = delta_L - theta0, gam = conviction)
+      check_upper_n <- fn_start(n_trans = sqrt(prep_mat[i,3])/sqrt(upper_n), 
+                                a = delta_U - theta0_vec[i], u = uuu[i],
+                                b = delta_L - theta0_vec[i], gam = conviction)
       if (check_upper_n > 0){
         start_rep[i] <- upper_n
       }
       else{
-        start_rep[i] <- (uu(fn_start, a = delta_U - theta0, u = uuu[i],
-                        b = delta_L - theta0, gam = conviction, 
-                        lower = (sqrt(Fish_ratio_mu)/sqrt(upper_n)), upper = 1000)/sqrt(Fish_ratio_mu))^(-2)
+        start_rep[i] <- (uu(fn_start, a = delta_U - theta0_vec[i], u = uuu[i],
+                            b = delta_L - theta0_vec[i], gam = conviction, 
+                            lower = (sqrt(prep_mat[i,3])/sqrt(upper_n)), upper = 1000)/sqrt(prep_mat[i,3]))^(-2)
       }
     }
     mu_start <- quantile(start_rep, power)
     mu_low <- min(0.5*mu_start, quantile(start_rep, 1 - conviction + 0.05))
     mu_high <- max(2*mu_start, quantile(start_rep, (3 + power)/4))
   }
-  
-  ## generate a Sobol' sequence to find asymptotic power curve
-  ## we need an extra dimension for the predictive approach
-  sob_pwr <- sobol(m, d = 5, randomize = "digital.shift", seed = seed)
-  
-  ## the design values are reordered according to the final dimension of the Sobol' sequence
-  params <- cbind(gamma_alpha.1, gamma_beta.1, gamma_alpha.2, gamma_beta.2)
-  params <- params[order(gamma_theta),]
-  params <- params[ceiling(length(gamma_theta)*sob_pwr[,5]),]
-  
-  gamma_alpha.1 <- params[,1]; gamma_beta.1 <- params[,2]
-  gamma_alpha.2 <- params[,3]; gamma_beta.2 <- params[,4]
   
   ## helper function used to compute an integral in the partial derivative
   ## of theta_j with respect to alpha_j
@@ -433,7 +458,6 @@ powerCurveGamma1 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   ## are just to investigate how often the root-finding algorithm presents issues
   return(list(samps_pwr, c(n_star, mean(power_star_round >= conviction), mean(consistency)),
               adjust))
-  
 }
 
 ## function to approximate power curve using approximation method in Algorithm 2
@@ -446,8 +470,8 @@ powerCurveGamma2 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   ## power: the target power, denoted capital Gamma in the paper
   ## delta_L: lower interval endpoint for hypothesis test
   ## delta_U: upper interval endpoint for hypothesis test
-  ## gamma_alpha.j: the design value for the shape parameter of the gamma distribution for group j = 1, 2
-  ## gamma_beta.j: the design value for the rate parameter of the gamma distribution for group j = 1, 2
+  ## gamma_alpha.j: the design values for the shape parameter of the gamma distribution for group j = 1, 2
+  ## gamma_beta.j: the design values for the rate parameter of the gamma distribution for group j = 1, 2
   ## alpha_j has a Gamma(mu0.j, tau0.j) prior, where tau0.j is a rate for group j = 1, 2
   ## beta_j has a Gamma(kappa0.j, lambda0.j) prior, where lambda0.j is a rate for group j = 1, 2
   ## threshold: the threshold for the tail probability in each group, denoted tau in the paper
@@ -459,44 +483,55 @@ powerCurveGamma2 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   ## concatenate all hyperparameters in matrix form (used in targetPower() function)
   hyper_mat <- rbind(c(mu0.1, tau0.1), c(kappa0.1, lambda0.1), c(mu0.2, tau0.2), c(kappa0.2, lambda0.2))
   
-  ## find good upper bound for the sample size to generate the asymptotic power curve
+  ## generate a Sobol' sequence to find asymptotic power curve
+  ## we need an extra dimension for the predictive approach
+  sob_pwr <- sobol(m, d = 5, randomize = "digital.shift", seed = seed)
+  
   gamma_theta.1 <- 1 - pgamma(threshold, gamma_alpha.1, gamma_beta.1)
   gamma_theta.2 <- 1 - pgamma(threshold, gamma_alpha.2, gamma_beta.2)
   gamma_theta <- gamma_theta.1/gamma_theta.2
   
-  ## use the median draws from the design prior to get the starting point
-  alpha1 <- median(gamma_alpha.1); alpha2 <- median(gamma_alpha.2)
-  beta1 <- median(gamma_beta.1); beta2 <- median(gamma_beta.2)
-  ## define theta metrics in terms of design values
-  theta1 <- 1 - pgamma(threshold, alpha1, beta1)
-  theta2 <- 1 - pgamma(threshold, alpha2, beta2)
+  ## the design values are reordered according to the final dimension of the Sobol' sequence
+  params <- cbind(gamma_alpha.1, gamma_beta.1, gamma_alpha.2, gamma_beta.2)
+  params <- params[order(gamma_theta),]
+  params <- params[ceiling(length(gamma_theta)*sob_pwr[,5]),]
   
-  ## compute partial derivatives of theta with respect to alpha and beta for each group
-  int_1 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
-                     lower = 0, upper = threshold, alpha = alpha1, beta = beta1)$value
+  gamma_alpha.1 <- params[,1]; gamma_beta.1 <- params[,2]
+  gamma_alpha.2 <- params[,3]; gamma_beta.2 <- params[,4]
   
-  d_alpha1 <- digamma(alpha1)*pgamma(threshold,alpha1, beta1) - int_1
-  
-  d_beta1 <- (alpha1/beta1)*(pgamma(threshold, alpha1+1, beta1) -  pgamma(threshold, alpha1, beta1))
-  
-  int_2 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
-                     lower = 0, upper = threshold, alpha = alpha2, beta = beta2)$value
-  
-  d_alpha2 <- digamma(alpha2)*pgamma(threshold, alpha2, beta2) - int_2
-  
-  d_beta2 <- (alpha2/beta2)*(pgamma(threshold, alpha2+1, beta2) - pgamma(threshold, alpha2,beta2))
-  
-  ## compute Fisher information for each gamma model
-  Fish1inv <- matrix((1/(trigamma(alpha1)*alpha1 - 1))*c(alpha1, beta1, beta1, trigamma(alpha1)*beta1^2), nrow = 2)
-  Fish2inv <-  matrix((1/(trigamma(alpha2)*alpha2 - 1))*c(alpha2, beta2, beta2, trigamma(alpha2)*beta2^2), nrow = 2)
-  
-  ## apply the delta method to get the limiting variance for each theta_j metric
-  avar1 <- t(c(d_alpha1, d_beta1))%*%Fish1inv%*%c(d_alpha1, d_beta1)
-  
-  avar2 <- t(c(d_alpha2, d_beta2))%*%Fish2inv%*%c(d_alpha2, d_beta2)/q
-  
-  ## apply the delta method to get the limiting variance for theta = logtheta1 - logtheta2
-  Fish_ratio_mu <- as.numeric(avar1/theta1^2 + avar2/theta2^2)
+  fn_prep <- function(alpha1, beta1, alpha2, beta2, threshold, q){
+    ## define theta metrics in terms of design values
+    theta1 <- 1 - pgamma(threshold, alpha1, beta1)
+    theta2 <- 1 - pgamma(threshold, alpha2, beta2)
+    
+    ## compute partial derivatives of theta with respect to alpha and beta for each group
+    int_1 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
+                       lower = 0, upper = threshold, alpha = alpha1, beta = beta1)$value
+    
+    d_alpha1 <- digamma(alpha1)*pgamma(threshold,alpha1, beta1) - int_1
+    
+    d_beta1 <- (alpha1/beta1)*(pgamma(threshold, alpha1+1, beta1) - pgamma(threshold, alpha1, beta1))
+    
+    int_2 <- integrate(function(alpha, beta, x){dgamma(x, alpha, beta)*log(beta*x)},
+                       lower = 0, upper = threshold, alpha = alpha2, beta = beta2)$value
+    
+    d_alpha2 <- digamma(alpha2)*pgamma(threshold, alpha2, beta2) - int_2
+    
+    d_beta2 <- (alpha2/beta2)*(pgamma(threshold, alpha2+1, beta2) - pgamma(threshold, alpha2,beta2))
+    
+    ## compute Fisher information for each gamma model
+    Fish1inv <- matrix((1/(trigamma(alpha1)*alpha1 - 1))*c(alpha1, beta1, beta1, trigamma(alpha1)*beta1^2), nrow = 2)
+    Fish2inv <-  matrix((1/(trigamma(alpha2)*alpha2 - 1))*c(alpha2, beta2, beta2, trigamma(alpha2)*beta2^2), nrow = 2)
+    
+    ## apply the delta method to get the limiting variance for each theta_j metric
+    avar1 <- t(c(d_alpha1, d_beta1))%*%Fish1inv%*%c(d_alpha1, d_beta1)
+    
+    avar2 <- t(c(d_alpha2, d_beta2))%*%Fish2inv%*%c(d_alpha2, d_beta2)/q
+    
+    ## apply the delta method to get the limiting variance for theta = logtheta1 - logtheta2
+    Fish_ratio_mu <- as.numeric(avar1/theta1^2 + avar2/theta2^2)
+    return(c(theta1, theta2, Fish_ratio_mu))
+  }
   
   ## uniroot without error checking
   uu <- function (fun, lower, upper, f_lower = NULL, f_upper = NULL, maxiter = 1000, tol = 1e-4, tol2 = 0.01, ...)
@@ -567,24 +602,50 @@ powerCurveGamma2 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
   }
   
   ## return initial upper bound for the root finding algorithm
+  ## return initial upper bound for the root finding algorithm
   if (!is.finite(delta_U)){
-    mu_start <- ((qnorm(power) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2
-    mu_low <- min(((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2, 0.5*mu_start)
-    mu_high <- max(((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(Fish_ratio_mu)/((log(theta1) - log(theta2)) - delta_L))^2, 2*mu_start)
+    mu_start_vec <- NULL; mu_low_vec <- NULL; mu_high_vec <- NULL
+    for (i in 1:128){
+      prep_vec <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      mu_start_vec[i] <- ((qnorm(power) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2
+      mu_low_vec[i] <- min(((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2, 0.5*mu_start_vec[i])
+      mu_high_vec[i] <- max(((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(prep_vec[3])/((log(prep_vec[1]) - log(prep_vec[2])) - delta_L))^2, 2*mu_start_vec[i])
+    }
+    mu_start <- median(mu_start_vec)
+    mu_low <- median(mu_low_vec)
+    mu_high <- median(mu_high_vec)
   }
   else if (!is.finite(delta_L)){
-    mu_start <- ((qnorm(power) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2))))^2
-    mu_low <- min((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2)))^2, 0.5*mu_start)
-    mu_high <- max((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(Fish_ratio_mu)/(delta_U - (log(theta1) - log(theta2)))^2, 2*mu_start)
+    mu_start_vec <- NULL; mu_low_vec <- NULL; mu_high_vec <- NULL
+    for (i in 1:128){
+      prep_vec <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      mu_start_vec[i] <- ((qnorm(power) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2]))))^2
+      mu_low_vec[i] <- min((qnorm(1 - conviction + 0.05) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2])))^2, 0.5*mu_start_vec[i])
+      mu_high_vec[i] <- max((qnorm((3 + power)/4) + qnorm(conviction))*sqrt(prep_vec[3])/(delta_U - (log(prep_vec[1]) - log(prep_vec[2])))^2, 2*mu_start_vec[i])
+    }
+    mu_start <- median(mu_start_vec)
+    mu_low <- median(mu_low_vec)
+    mu_high <- median(mu_high_vec)
   }
   else{
+    prep_mat <- NULL
+    for (i in 1:128){
+      prep_mat_temp <- fn_prep(gamma_alpha.1[i], gamma_beta.1[i], gamma_alpha.2[i], gamma_beta.2[i], threshold, q)
+      prep_mat <- rbind(prep_mat, prep_mat_temp)
+    }
+    
     ## find more conservative upper bound using criteria for credible intervals
-    theta0 <- log(theta1) - log(theta2)
-    a_cons <- (delta_U - theta0)/sqrt(Fish_ratio_mu)
-    b_cons <- (delta_L - theta0)/sqrt(Fish_ratio_mu)
+    theta0_vec <- log(prep_mat[,1]) - log(prep_mat[,2])
+    a_cons_vec <- (delta_U - theta0_vec)/sqrt(prep_mat[,3])
+    b_cons_vec <- (delta_L - theta0_vec)/sqrt(prep_mat[,3])
     c_cons <- qnorm((1-conviction)/2)
     ## lower bound for root-finding algorithm
-    lower_cons <- -2*c_cons*sqrt(Fish_ratio_mu)/(delta_U - delta_L)
+    lower_cons_vec <- -2*c_cons*sqrt(prep_mat[,3])/(delta_U - delta_L)
+    max.ind <- which.max(lower_cons_vec)
+    
+    a_cons <- a_cons_vec[max.ind]
+    b_cons <- b_cons_vec[max.ind]
+    lower_cons <- lower_cons_vec[max.ind]
     upper_cons <- lower_cons
     
     fn_ci = function(n_sq, a, b, c, pwr){
@@ -609,34 +670,22 @@ powerCurveGamma2 <- function(conviction, power, delta_L, delta_U, gamma_alpha.1,
     uuu <- as.numeric(sobol(128, d = 1, randomize = "digital.shift", seed = seed))
     start_rep <- NULL
     for (i in 1:length(uuu)){
-      check_upper_n <- fn_start(n_trans = sqrt(Fish_ratio_mu)/sqrt(upper_n), 
-                                a = delta_U - theta0, u = uuu[i],
-                                b = delta_L - theta0, gam = conviction)
+      check_upper_n <- fn_start(n_trans = sqrt(prep_mat[i,3])/sqrt(upper_n), 
+                                a = delta_U - theta0_vec[i], u = uuu[i],
+                                b = delta_L - theta0_vec[i], gam = conviction)
       if (check_upper_n > 0){
         start_rep[i] <- upper_n
       }
       else{
-        start_rep[i] <- (uu(fn_start, a = delta_U - theta0, u = uuu[i],
-                            b = delta_L - theta0, gam = conviction, 
-                            lower = (sqrt(Fish_ratio_mu)/sqrt(upper_n)), upper = 1000)/sqrt(Fish_ratio_mu))^(-2)
+        start_rep[i] <- (uu(fn_start, a = delta_U - theta0_vec[i], u = uuu[i],
+                            b = delta_L - theta0_vec[i], gam = conviction, 
+                            lower = (sqrt(prep_mat[i,3])/sqrt(upper_n)), upper = 1000)/sqrt(prep_mat[i,3]))^(-2)
       }
     }
     mu_start <- quantile(start_rep, power)
     mu_low <- min(0.5*mu_start, quantile(start_rep, 1 - conviction + 0.05))
     mu_high <- max(2*mu_start, quantile(start_rep, (3 + power)/4))
   }
-  
-  ## generate a Sobol' sequence to find asymptotic power curve
-  ## we need an extra dimension for the predictive approach
-  sob_pwr <- sobol(m, d = 5, randomize = "digital.shift", seed = seed)
-  
-  ## the design values are reordered according to the final dimension of the Sobol' sequence
-  params <- cbind(gamma_alpha.1, gamma_beta.1, gamma_alpha.2, gamma_beta.2)
-  params <- params[order(gamma_theta),]
-  params <- params[ceiling(length(gamma_theta)*sob_pwr[,5]),]
-  
-  gamma_alpha.1 <- params[,1]; gamma_beta.1 <- params[,2]
-  gamma_alpha.2 <- params[,3]; gamma_beta.2 <- params[,4]
   
   ## function to solve for the posterior mode of each group
   ## x is the point (logalpha, logbeta) at which this function is evaluated at
